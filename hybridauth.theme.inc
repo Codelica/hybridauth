@@ -12,20 +12,37 @@ function template_preprocess_hybridauth_widget(&$vars, $hook) {
   
   if ($element['#hybridauth_widget_type'] == 'list') {
     foreach (hybridauth_get_enabled_providers() as $provider_id => $provider_name) {
-      $providers[] = l(
-        theme('hybridauth_provider_icon', array('icon_pack' => $element['#hybridauth_widget_icon_pack'], 'provider_id' => $provider_id, 'provider_name' => $provider_name)),
-        'hybridauth/popup/' . $provider_id,
-        array(
-          'html' => TRUE,
-          'query' => $query,
-          'attributes' => array(
-            'title' => $provider_name,
-            'class' => array('hybridauth-widget-provider'),
-            'rel' => array('nofollow'),
-            'onclick' => "event.preventDefault(); popup_window = window.open(this.href, 'hybridauth', 'location=no,menubar=no,resizable=yes,scrollbars=yes,status=no,titlebar=yes,toolbar=no,channelmode=yes,fullscreen=yes,width=800,height=500'); popup_window.focus(); return false;",
-          ),
-        )
-      );
+      if ($element['#hybridauth_window_type'] == "popup") {
+        $providers[] = l(
+          theme('hybridauth_provider_icon', array('icon_pack' => $element['#hybridauth_widget_icon_pack'], 'provider_id' => $provider_id, 'provider_name' => $provider_name)),
+          'hybridauth/popup/' . $provider_id,
+          array(
+            'html' => TRUE,
+            'query' => $query,
+            'attributes' => array(
+              'title' => $provider_name,
+              'class' => array('hybridauth-widget-provider'),
+              'rel' => array('nofollow'),
+              'onclick' => "event.preventDefault(); popup_window = window.open(this.href, 'hybridauth', 'location=no,menubar=no,resizable=yes,scrollbars=yes,status=no,titlebar=yes,toolbar=no,channelmode=yes,fullscreen=yes,width=800,height=500'); popup_window.focus(); return false;",
+            ),
+          )
+        );
+      }
+      elseif($element['#hybridauth_window_type'] == "native") {
+        $providers[] = l(
+          theme('hybridauth_provider_icon', array('icon_pack' => $element['#hybridauth_widget_icon_pack'], 'provider_id' => $provider_id, 'provider_name' => $provider_name)),
+          'hybridauth/native/' . $provider_id,
+          array(
+            'html' => TRUE,
+            'query' => $query,
+            'attributes' => array(
+              'title' => $provider_name,
+              'class' => array('hybridauth-widget-provider'),
+              'rel' => array('nofollow'),
+            ),
+          )
+        );
+      }
     }
   }
   else {

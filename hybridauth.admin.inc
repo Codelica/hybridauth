@@ -76,6 +76,16 @@ function hybridauth_admin_settings() {
     '#type' => 'fieldset',
     '#title' => t('Widget settings'),
   );
+  $options = array(
+    'popup' => t('Use a popup window'),
+    'native' => t('Use the current window'),
+  );
+  $form['vtabs']['fset_widget']['hybridauth_window_type'] = array(
+    '#type' => 'radios',
+    '#title' => t('Authentication window type'),
+    '#options' => $options,
+    '#default_value' => variable_get('hybridauth_window_type', 'popup'),
+  );
   $form['vtabs']['fset_widget']['hybridauth_widget_title'] = array(
     '#type' => 'textfield',
     '#title' => t('Widget title'),

@@ -68,8 +68,15 @@ function hybridauth_menu() {
     'type' => MENU_CALLBACK,
   );
   $items['hybridauth/popup/%'] = array(
-    'page callback' => 'hybridauth_popup',
-    'page arguments' => array(2),
+    'page callback' => 'hybridauth_window_start',
+    'page arguments' => array(2, 'popup'),
+    'access callback' => TRUE,
+    'file' => 'hybridauth.pages.inc',
+    'type' => MENU_CALLBACK,
+  );
+  $items['hybridauth/native/%'] = array(
+    'page callback' => 'hybridauth_window_start',
+    'page arguments' => array(2, 'native'),
     'access callback' => TRUE,
     'file' => 'hybridauth.pages.inc',
     'type' => MENU_CALLBACK,
@@ -223,7 +230,15 @@ function hybridauth_user_profile_form_validate_filter($value) {
  */
 function hybridauth_element_info() {
   $types = array();
+  $js_includes = array();
   
+  if (variable_get('hybridauth_window_type', 'popup') == "native") {
+    $js_includes[drupal_get_path('module', 'hybridauth') . '/js/hybridauth.native.js'] = array('type' => 'file');
+  }
+  if (variable_get('hybridauth_widget_type', 'list') != "list" && variable_get('hybridauth_widget_use_overlay', 1)) {
+    $js_includes[drupal_get_path('module', 'hybridauth') . '/js/hybridauth.js'] = array('type' => 'file');
+  }
+
   $types['hybridauth_widget'] = array(
     '#input' => FALSE,
     '#theme' => 'hybridauth_widget',
@@ -231,6 +246,7 @@ function hybridauth_element_info() {
     '#hybridauth_id' => 'hybridauth',
     '#title' => variable_get('hybridauth_widget_title', 'Or log in with...'),
     '#weight' => variable_get('hybridauth_widget_weight', 100),
+    '#hybridauth_window_type' => variable_get('hybridauth_window_type', 'popup'),
     '#hybridauth_widget_type' => variable_get('hybridauth_widget_type', 'list'),
     '#hybridauth_widget_use_overlay' => variable_get('hybridauth_widget_use_overlay', 1),
     '#hybridauth_widget_link_text' => variable_get('hybridauth_widget_link_text', 'Social network account'),
@@ -238,11 +254,7 @@ function hybridauth_element_info() {
     '#hybridauth_widget_icon_pack' => variable_get('hybridauth_widget_icon_pack', 'hybridauth_32'),
     '#hybridauth_destination' => variable_get('hybridauth_destination', ''),
     '#attached' => array(
-      'js' => array(
-        drupal_get_path('module', 'hybridauth') . '/js/hybridauth.js' => array(
-          'type' => 'file',
-        ),
-      ),
+      'js' => $js_includes,
       'css' => array(
         drupal_get_path('module', 'hybridauth') . '/css/hybridauth.css' => array(
           'type' => 'file',

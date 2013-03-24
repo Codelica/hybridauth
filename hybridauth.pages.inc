@@ -33,7 +33,7 @@ function hybridauth_providers($js) {
   }
 }
 
-function hybridauth_popup($provider_id) {
+function hybridauth_window_start($provider_id, $window_type) {
   // If provider is OpenID, but we don't have the OpenID target, show OpenID form.
   if ($provider_id == 'OpenID' && !isset($_GET['openid_identifier'])) {
     $form = drupal_get_form('hybridauth_openid_form');
@@ -50,18 +50,18 @@ function hybridauth_popup($provider_id) {
   
   // Try to get HybridAuth instance.
   if ($hybridauth = hybridauth_get_instance()) {
-    _hybridauth_popup_auth($hybridauth, $provider_id);
+    _hybridauth_window_auth($hybridauth, $provider_id, $window_type);
   }
   else {
     drupal_set_message(t('There was an error processing your request.'), 'error');
-    _hybridauth_popup_close();
+    _hybridauth_window_close(TRUE, $window_type);
   }
 }
 
 /**
- * Close the popup and redirect.
+ * Close the popup (if used) and redirect.
  */
-function _hybridauth_popup_close($redirect = TRUE) {
+function _hybridauth_window_close($redirect, $window_type) {
   global $user;
   // Prevent devel module from spewing.
   $GLOBALS['devel_shutdown'] = FALSE;
@@ -75,28 +75,33 @@ function _hybridauth_popup_close($redirect = TRUE) {
   //else {
   //  $destination = '';
   //}
-  drupal_add_js('
-    var redirect = ' . ($redirect ? 'true' : 'false') . ';
-    if (window.opener && redirect) {
-      window.opener.location.href = "' . url($destination, array('absolute' => TRUE)) . '";
-      window.self.close();
-    }
-    else if (redirect) {
-      window.location.href = "' . url($destination, array('absolute' => TRUE)) . '";
-    }
-    else {
-      window.location.replace(window.location.href);
-    }
-  ', 'inline');
-  $page = element_info('page');
-  $page['#children'] = 'Closing...';
-  print theme('html', array('page' => $page));
-  drupal_exit();
+  if ($window_type == "popup") {
+    drupal_add_js('
+      var redirect = ' . ($redirect ? 'true' : 'false') . ';
+      if (window.opener && redirect) {
+        window.opener.location.href = "' . url($destination, array('absolute' => TRUE)) . '";
+        window.self.close();
+      }
+      else if (redirect) {
+        window.location.href = "' . url($destination, array('absolute' => TRUE)) . '";
+      }
+      else {
+        window.location.replace(window.location.href);
+      }
+    ', 'inline');
+    $page = element_info('page');
+    $page['#children'] = 'Closing...';
+    print theme('html', array('page' => $page));
+    drupal_exit();
+  }
+  elseif ($window_type == "native") {
+    drupal_goto($destination, array('absolute' => TRUE));
+  }
 }
 
-function _hybridauth_popup_auth($hybridauth, $provider_id) {
+function _hybridauth_window_auth($hybridauth, $provider_id, $window_type) {
   $params = array(
-    'hauth_return_to' => url('hybridauth/popup/' . $provider_id, array('absolute' => TRUE, 'query' => drupal_get_query_parameters())),
+    'hauth_return_to' => url('hybridauth/' . $window_type . '/' . $provider_id, array('absolute' => TRUE, 'query' => drupal_get_query_parameters())),
   );
   if (isset($_GET['openid_identifier'])) {
     $params['openid_identifier'] = $_GET['openid_identifier'];
@@ -127,20 +132,20 @@ function _hybridauth_popup_auth($hybridauth, $provider_id) {
     }
     
     watchdog_exception('hybridauth', $e);
-    _hybridauth_popup_close($redirect);
+    _hybridauth_window_close($redirect, $window_type);
   }
 
   $profile['provider'] = $provider_id;
   // Invoke hook_hybridauth_profile_alter().
   drupal_alter('hybridauth_profile', $profile);
   // Process Drupal authentication.
-  _hybridauth_popup_process_auth($profile);
+  _hybridauth_window_process_auth($profile, $window_type);
 }
 
 /**
  * A helper function that takes a successful HA authentication and handles the Drupal side of things.
  */
-function _hybridauth_popup_process_auth($data) {
+function _hybridauth_window_process_auth($data, $window_type) {
   global $user;
   
   // User is already logged in, tries to add new identity.
@@ -150,12 +155,12 @@ function _hybridauth_popup_process_auth($data) {
       // Registered to this user.
       if ($user->uid == $identity['uid']) {
         drupal_set_message(t('You have already registered this identity.'));
-        _hybridauth_popup_close();
+        _hybridauth_window_close(TRUE, $window_type);
       }
       // Registered to another user.
       else {
         drupal_set_message(t('This identity is registered to another user.'), 'error');
-        _hybridauth_popup_close();
+        _hybridauth_window_close(TRUE, $window_type);
       }
     }
     // Identity is not registered - add it to the logged in user.
@@ -166,7 +171,7 @@ function _hybridauth_popup_process_auth($data) {
       if (module_exists('rules')) {
         rules_invoke_event('hybridauth_identity_added', $user, $data);
       }
-      _hybridauth_popup_close();
+      _hybridauth_window_close(TRUE, $window_type);
     }
   }
   
@@ -229,7 +234,7 @@ function _hybridauth_popup_process_auth($data) {
     if ((!variable_get('hybridauth_register', 0) && variable_get('user_register', USER_REGISTER_VISITORS_ADMINISTRATIVE_APPROVAL))
       || variable_get('hybridauth_register', 0)) {
       // Check profile information for required fields.
-      _hybridauth_check_additional_info($data);
+      _hybridauth_check_additional_info($data, $window_type);
       
       //TODO: remove this global if possible
       global $hybridauth_data;
@@ -259,7 +264,7 @@ function _hybridauth_popup_process_auth($data) {
       // Terminate if an error occurred during user_save().
       if (!$account) {
         drupal_set_message(t("Error saving user account."), 'error');
-        _hybridauth_popup_close();
+        _hybridauth_window_close(TRUE, $window_type);
       }
       // Invoke hybridauth_user_insert rules event.
       if (module_exists('rules')) {
@@ -328,10 +333,10 @@ function _hybridauth_popup_process_auth($data) {
     }
   }
   
-  _hybridauth_popup_close();
+  _hybridauth_window_close(TRUE, $window_type);
 }
 
-function _hybridauth_check_additional_info($data) {
+function _hybridauth_check_additional_info($data, $window_type) {
   $show_form = FALSE;
   
   if (empty($data['username']) && variable_get('hybridauth_registration_username_change', 0)) {
@@ -352,21 +357,34 @@ function _hybridauth_check_additional_info($data) {
   }
   
   if ($show_form) {
-    $form = drupal_get_form('hybridauth_additional_info_form', $data);
+    $form = drupal_get_form('hybridauth_additional_info_form', $data, $window_type);
 
     $page = element_info('page');
-    $page['#children'] = theme('status_messages') . drupal_render($form);
 
-    print theme('html', array('page' => $page));
+    if ($window_type == "popup") {
+      $page['#children'] = theme('status_messages') . drupal_render($form);
+      print theme('html', array('page' => $page));
+    }
+    elseif ($window_type == "native") {
+      drupal_set_title(t('Required Information'));
+      if (isset($form['fset']['#title'])) unset($form['fset']['#title']);
+      $page['content']['system_main']['messages'] = array('#type' => 'markup', '#markup' => theme('status_messages'));
+      $page['content']['system_main']['required_info_form'] = $form;
+      print drupal_render($page);
+    }
     drupal_exit();
   }
 }
 
-function hybridauth_additional_info_form($form, &$form_state, $data) {
+function hybridauth_additional_info_form($form, &$form_state, $data, $window_type) {
   $form = array();
   $form['data'] = array(
     '#type' => 'value',
     '#value' => $data,
+  );
+  $form['window_type'] = array(
+    '#type' => 'value',
+    '#value' => $window_type,
   );
   $form['fset'] = array(
     '#type' => 'fieldset',
@@ -450,6 +468,7 @@ function hybridauth_additional_info_form_validate($form, &$form_state) {
 
 function hybridauth_additional_info_form_submit($form, &$form_state) {
   $data = $form_state['values']['data'];
+  $window_type = $form_state['values']['window_type'];
   $required_fields = array_filter(variable_get('hybridauth_required_fields', array('email' => 'email')));
   
   foreach ($required_fields as $key => $value) {
@@ -465,7 +484,7 @@ function hybridauth_additional_info_form_submit($form, &$form_state) {
   }
   $data['manual'] = implode(',', $data['manual']);
   
-  _hybridauth_popup_process_auth($data);
+  _hybridauth_window_process_auth($data, $window_type);
 }
 
 function hybridauth_openid_form($form, &$form_state) {
